@@ -18,7 +18,7 @@ class AttributeBot(object):
 
         self.server = self.client.server
         self.uid = self.server.login_data["self"]["id"]
-        self.set_home_channel()
+        self.set_home_cid()
 
     def loop(self):
         now = int(time.time())
@@ -35,18 +35,18 @@ class AttributeBot(object):
             self.loop()
             time.sleep(0.2)
 
-    def set_home_channel(self, channel_name=config.home_channel):
+    def set_home_cid(self, channel_name=config.home_channel):
         c = next(channel.id for channel in self.server.channels
                             if channel.name == channel_name)
         if c:
-            self.home_channel = c
+            self.home_cid = c
 
     # A message can be directed at the bot in one of three ways:
     # Any message in the home channel.
     # Any direct message to the bot.
     # Any message in any channel when the bot is mentioned.
     def directed_at_bot(self, reply):
-        if reply["channel"] == self.home_channel:
+        if reply["channel"] == self.home_cid:
             return True
 
         if reply["channel"].startswith("D"):
