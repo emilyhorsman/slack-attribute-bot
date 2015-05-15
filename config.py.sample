@@ -1,0 +1,3 @@
+slack_api_token = "### INSERT SLACK API TOKEN HERE ###"
+
+home_channel = "attributes"
