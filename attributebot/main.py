@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import time
 from datetime import datetime
 from slackclient import SlackClient
@@ -7,9 +10,13 @@ import config
 class AttributeBot(object):
 
     def __init__(self, start=True):
+        self.r = redis.from_url(config.redis_url)
         self.last_ping = 0
         if start:
             self.start()
+
+    def p(self, s):
+        return "{}:{}".format(config.redis_prefix, s)
 
     def connect(self):
         self.client = SlackClient(config.slack_api_token)
@@ -52,17 +59,54 @@ class AttributeBot(object):
         if reply["channel"].startswith("D"):
             return True
 
-        if reply["text"].find("<@{}>".format(self.uid)) != -1:
+        if reply.get("text", "").find("<@{}>".format(self.uid)) != -1:
             return True
 
         return False
 
+    def strip_meta(self, s):
+        u = "<@{}>".format(self.uid)
+        if s.endswith(u):
+            s = s[:-len(u)]
+
+        if s.startswith(u):
+            s = s[len(u):]
+
+        if s.startswith(":"):
+            s = s[1:]
+
+        return s.strip()
+
+
+    def log_feeling(self, uid, attribute, time):
+        key = self.p("feeling:{}:{}".format(uid, attribute))
+        self.r.lpush(key, time)
+
+    def last_feeling(self, uid, attribute):
+        key = self.p("feeling:{}:{}".format(uid, attribute))
+        date = self.r.lrange(key, 0, 0)
+        if len(date) == 0:
+            return "You’ve never felt “{}” before.".format(attribute)
+        else:
+            date = datetime.fromtimestamp(float(date[0]))
+            return "You last felt “{}” at {}".format(attribute, date.strftime("%b %-d ’%y %-I:%M %p"))
+
     def process(self, reply):
+        command = self.strip_meta(reply["text"].strip())
+        uid = reply["user"]
         date = datetime.fromtimestamp(float(reply["ts"]))
-        print "[{}] [#{}] {}".format(date.strftime("%I:%M%p"), self.server.channels.find(reply["channel"]).name, reply["text"])
+
+        if command.startswith("last feeling "):
+            self.client.rtm_send_message(reply["channel"], self.last_feeling(uid, command[13:]))
+        elif command.startswith("feeling "):
+            self.log_feeling(uid, command[8:], reply["ts"])
 
     def process_rtm_reply(self, reply):
-        if reply["type"] == "message":
+        if reply.get("type") == "message":
+            if reply.get("subtype") == "message_changed":
+                reply["text"] = reply["message"]["text"]
+                reply["user"] = reply["message"]["user"]
+
             if self.directed_at_bot(reply):
                 self.process(reply)
 
