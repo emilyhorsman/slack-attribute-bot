@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import time
+import logging
 from datetime import datetime
 from slackclient import SlackClient
 import redis
@@ -10,6 +11,7 @@ import config
 class AttributeBot(object):
 
     def __init__(self, start=True):
+        logging.basicConfig(filename=config.log_path, level=getattr(logging, config.log_level.upper()))
         self.r = redis.from_url(config.redis_url)
         self.last_ping = 0
         if start:
@@ -102,6 +104,10 @@ class AttributeBot(object):
             self.log_feeling(uid, command[8:], reply["ts"])
 
     def process_rtm_reply(self, reply):
+        if reply.get("type") == "pong":
+            return
+
+        logging.debug(reply)
         if reply.get("type") == "message":
             if reply.get("subtype") == "message_changed":
                 reply["text"] = reply["message"]["text"]
